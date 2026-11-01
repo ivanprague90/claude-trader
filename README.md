@@ -36,6 +36,10 @@ Options: `--fake` (fake broker + brain), `--slot 15:40`, `--force` (redo a finis
 
 Requirements: [Bun](https://bun.sh), [Claude Code](https://claude.com/claude-code) logged in (on a server: `claude setup-token` and `CLAUDE_CODE_OAUTH_TOKEN`), an Alpaca paper account, a Telegram bot. Zero runtime dependencies. Keys can also come from environment variables with the same names as in `secrets.example.ts`.
 
+## Run it on a server
+
+`Dockerfile` and `docker-compose.yml` run the scheduler in a container (keys come from a git-ignored `.env`, state and logs live on volumes). A step-by-step guide for AWS, entirely with the AWS CLI (install, launch, update, backup, monitor, delete), is in [`docs/DEPLOY-AWS.md`](docs/DEPLOY-AWS.md).
+
 ## Layout
 
 | File | Responsibility |
@@ -51,3 +55,7 @@ Requirements: [Bun](https://bun.sh), [Claude Code](https://claude.com/claude-cod
 | `src/fake.ts` | fake broker (file-backed, with injectable faults) and fake brain |
 | `src/cli.ts` | `once`, `schedule`, `status`, `reconcile` |
 | `test/` | contract tests (including a real `kill -9`), hardening tests, unit tests |
+
+| `Dockerfile`, `docker-compose.yml` | container with Bun + Claude Code, volumes for `state/` and `logs/` |
+| `deploy/aws/` | EC2 bootstrap (`user-data.sh`) and `.env` generator from SSM Parameter Store (`fetch-env.sh`) |
+| `docs/DEPLOY-AWS.md` | the AWS runbook |
