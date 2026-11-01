@@ -147,3 +147,8 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# claude-trader: segreti, stato e log del trader
+secrets.ts
+state/
+logs/
