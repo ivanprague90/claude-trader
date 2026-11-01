@@ -1,0 +1,16 @@
+{
+  "name": "claude-trader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous paper-trading agent on Alpaca, with a Claude brain running on a fixed schedule.",
+  "type": "module",
+  "scripts": {
+    "once": "bun src/cli.ts once",
+    "schedule": "bun src/cli.ts schedule",
+    "status": "bun src/cli.ts status",
+    "reconcile": "bun src/cli.ts reconcile"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}
