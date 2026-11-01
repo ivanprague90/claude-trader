@@ -1,0 +1,13 @@
+.git
+.gitignore
+node_modules
+state
+logs
+secrets.ts
+.env
+.env.*
+docs
+deploy
+*.md
+Dockerfile
+docker-compose.yml
