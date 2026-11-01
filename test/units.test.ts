@@ -298,9 +298,14 @@ describe("log e Telegram", () => {
 
   test("Telegram: HTTP non ok → false, senza lanciare", async () => {
     const lines: string[] = [];
-    const tg = new TelegramNotifier("t", "1", new Logger(null, [], (l) => lines.push(l)), (async () => new Response("no", { status: 400 })) as unknown as typeof fetch);
+    const body = JSON.stringify({ ok: false, error_code: 400, description: "Bad Request: chat not found" });
+    const tg = new TelegramNotifier("t", "1", new Logger(null, [], (l) => lines.push(l)), (async () => new Response(body, { status: 400 })) as unknown as typeof fetch);
     expect(await tg.send("x")).toBe(false);
-    expect(lines[0]).toContain("HTTP 400");
+    expect(lines[0]).toContain("HTTP 400 · Bad Request: chat not found");
+    // risposta senza JSON: resta solo il codice
+    const plain = new TelegramNotifier("t", "1", new Logger(null, [], (l) => lines.push(l)), (async () => new Response("no", { status: 502 })) as unknown as typeof fetch);
+    expect(await plain.send("x")).toBe(false);
+    expect(lines[1]).toBe("[telegram ] messaggio non inviato: HTTP 502");
   });
 });
 

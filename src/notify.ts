@@ -22,7 +22,14 @@ export class TelegramNotifier implements Notifier {
         body: JSON.stringify({ chat_id: this.chatId, text: text.slice(0, MAX_LEN), disable_web_page_preview: true }),
       });
       if (!res.ok) {
-        this.log.line("telegram", `messaggio non inviato: HTTP ${res.status}`);
+        // Telegram spiega il motivo nel campo "description" (es. "Bad Request: chat not found")
+        let why = "";
+        try {
+          why = String(((await res.json()) as { description?: unknown }).description ?? "");
+        } catch {
+          /* risposta senza JSON */
+        }
+        this.log.line("telegram", `messaggio non inviato: HTTP ${res.status}${why ? ` · ${why.slice(0, 200)}` : ""}`);
         return false;
       }
       return true;
