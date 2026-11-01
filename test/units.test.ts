@@ -306,7 +306,8 @@ describe("log e Telegram", () => {
 
 describe("lucchetto", () => {
   async function deadPid(): Promise<number> {
-    const p = Bun.spawn(["true"]);
+    // un processo che parte e finisce subito; il suo pid non esiste più. process.execPath = bun stesso, quindi vale anche su Windows
+    const p = Bun.spawn([process.execPath, "-e", "0"]);
     await p.exited;
     return p.pid;
   }

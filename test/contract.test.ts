@@ -57,7 +57,11 @@ describe("2. processo ucciso dopo il primo ordine → la sveglia dopo trova il l
     // il figlio esegue una sveglia vera e si uccide da solo (SIGKILL: niente cleanup) subito dopo il primo ordine accettato
     const child = Bun.spawn(["bun", join(import.meta.dir, "child-run.ts"), e.dir, T.apertura], { stdout: "pipe", stderr: "pipe" });
     await child.exited;
-    expect(child.signalCode).toBe("SIGKILL");
+    // Su Linux/macOS il figlio muore per SIGKILL. Su Windows non esistono i segnali: il processo viene terminato e Bun
+    // riporta un codice d'uscita diverso da zero, senza signalCode. In entrambi i casi non deve essere finito normalmente.
+    if (process.platform === "win32") expect(child.exitCode).not.toBe(0);
+    else expect(child.signalCode).toBe("SIGKILL");
+    expect(await new Response(child.stdout).text()).not.toContain("ERRORE: il processo doveva morire");
     expect(existsSync(e.store.lockPath)).toBe(true); // il lucchetto è rimasto: la sveglia è morta a metà
     expect(e.broker.allOrders().map((o) => o.clientOrderId)).toEqual(["2026-10-05-1540-SPY-buy"]);
     expect(e.store.readLock()!.intended).toEqual(["2026-10-05-1540-SPY-buy", "2026-10-05-1540-QQQ-buy", "2026-10-05-1540-GLD-buy"]);
