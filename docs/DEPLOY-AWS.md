@@ -104,20 +104,58 @@ session-manager-plugin --version
 Se un link non funziona, le istruzioni aggiornate per ogni sistema sono qui:
 <https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html>
 
-### 1.3 Credenziali AWS
+### 1.3 Utente IAM dedicato al deploy
 
-Non usare le chiavi dell'utente root. Due strade:
+Non usare le chiavi dell'utente root. Crea un utente IAM **solo per questo progetto**, con i permessi minimi che servono ai comandi di questa guida (`deploy/aws/deployer-policy.json`): EC2 nella regione scelta, IAM limitato al solo ruolo `claude-trader`, i parametri `/claude-trader*` di Parameter Store, Session Manager, e (facoltativi) allarme CloudWatch e budget.
 
-- **IAM Identity Center (SSO)**, se la tua organizzazione lo usa: `aws configure sso`
-- **Utente IAM con chiavi di accesso**: `aws configure` (chiede Access Key ID, Secret, regione, formato)
+La prima volta serve un'identità che possa creare utenti IAM (root o un amministratore): è l'unico momento in cui ti serve.
 
-Per fare il setup iniziale servono permessi su EC2, IAM, SSM e (facoltativi) CloudWatch e Budgets. Per un account personale va bene un utente con `AdministratorAccess`, da non usare per altro.
+**Strada A, dalla console AWS**
 
-Verifica chi sei:
+1. IAM → *Policies* → *Create policy* → scheda *JSON*: incolla il contenuto di `deploy/aws/deployer-policy.json`, **dopo aver sostituito** `ACCOUNT_ID` con l'ID del tuo account (12 cifre, in alto a destra nella console) e, se non usi Francoforte, `eu-central-1` con la tua regione. Nome: `claude-trader-deploy`.
+2. IAM → *Users* → *Create user*: nome `claude-trader-deployer`, **senza** accesso alla console. In *Permissions* scegli *Attach policies directly* e seleziona `claude-trader-deploy`.
+3. Apri l'utente → *Security credentials* → *Create access key* → caso d'uso *Command Line Interface (CLI)*. Copia *Access key ID* e *Secret access key* (la secret si vede una volta sola).
+4. Consigliato: nella stessa pagina, *Assign MFA device*.
+
+**Strada B, da AWS CLI** (se hai già un profilo amministratore, per esempio `--profile admin`):
 
 ```bash
-aws sts get-caller-identity
+export MSYS_NO_PATHCONV=1 AWS_PAGER="" AWS_REGION=eu-central-1     # vedi punto 2
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)    # con il profilo amministratore attivo
+
+# la policy, con account e regione al posto dei segnaposto
+POLICY=$(sed -e "s/ACCOUNT_ID/$ACCOUNT_ID/g" -e "s/eu-central-1/$AWS_REGION/g" deploy/aws/deployer-policy.json)
+
+aws iam create-policy --policy-name claude-trader-deploy --policy-document "$POLICY" --query Policy.Arn --output text
+aws iam create-user --user-name claude-trader-deployer
+aws iam attach-user-policy --user-name claude-trader-deployer \
+  --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/claude-trader-deploy"
+aws iam create-access-key --user-name claude-trader-deployer \
+  --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text
 ```
+
+L'ultimo comando stampa le due chiavi **una volta sola**: copiale subito. La policy è gestita e non inline perché supera il limite di 2048 caratteri delle policy inline degli utenti.
+
+**Creare il profilo sul tuo computer** (in entrambi i casi):
+
+```bash
+aws configure --profile claude-trader-deployer
+#   AWS Access Key ID:      <la chiave>
+#   AWS Secret Access Key:  <la secret>
+#   Default region name:    eu-central-1
+#   Default output format:  json
+
+export AWS_PROFILE=claude-trader-deployer         # PowerShell: $env:AWS_PROFILE="claude-trader-deployer"
+aws sts get-caller-identity                       # deve mostrare .../user/claude-trader-deployer
+```
+
+D'ora in poi tutti i comandi della guida usano questo profilo. `AWS_PROFILE` vale solo per il terminale in cui lo imposti: riesportalo a ogni nuova sessione (è nel blocco del punto 2).
+
+Cose da sapere:
+
+- **Se un comando dà `AccessDenied`**, l'errore nomina l'azione mancante (per esempio `kms:CreateGrant` se il disco cifrato lo richiede): aggiungila a una nuova versione della policy.
+- **Questo utente può dare permessi al ruolo `claude-trader`** (può scrivere la policy del ruolo), quindi in pratica può ottenerne di più di quelli elencati. Trattalo come sensibile: MFA, chiavi mai in git né in chat, e disattivale quando non servono (`aws iam update-access-key --user-name claude-trader-deployer --access-key-id <id> --status Inactive`).
+- **Per cancellarlo** a fine progetto: `aws iam delete-access-key`, `aws iam detach-user-policy`, `aws iam delete-user`, `aws iam delete-policy` (con un profilo amministratore).
 
 ### 1.4 Strumenti sul tuo computer per il trader
 
@@ -132,6 +170,7 @@ Esegui questo blocco **all'inizio di ogni sessione** di terminale (le variabili 
 ```bash
 export MSYS_NO_PATHCONV=1            # solo Git Bash su Windows: vedi nota in alto. Innocuo altrove
 export AWS_PAGER=""                  # niente pager interattivo
+export AWS_PROFILE=claude-trader-deployer   # l'utente IAM del punto 1.3
 export AWS_REGION=eu-central-1       # Francoforte. Milano (eu-south-1) va prima abilitata in Account → AWS Regions
 NAME=claude-trader
 INSTANCE_TYPE=t3.small               # 2 GB di RAM: claude -p è un processo Node, 1 GB è troppo stretto
